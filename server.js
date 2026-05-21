@@ -1,33 +1,55 @@
 const express = require('express');
 const path = require('path');
+const os = require('os');
 const app = express();
-const port = process.env.PORT || 3000;
 
-// Serve static files (add public/ folder for CSS/JS/images later)
-app.use(express.static('public'));
+// Middleware
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// Routes/pages
-app.get('/', (req, res) => {
-  res.send(`
-    <h1>Welcome to My Node App</h1>
-    <a href="/about">About</a> | <a href="/todos">Todos</a>
-    <p>Deployed via Proxmox CI/CD pipeline!</p>
-  `);
+// Routes/API
+app.get('/api/status', (req, res) => {
+  // Calculate system uptime
+  const uptimeSeconds = os.uptime();
+  const days = Math.floor(uptimeSeconds / (3600 * 24));
+  const hours = Math.floor((uptimeSeconds % (3600 * 24)) / 3600);
+  const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+  
+  res.json({
+    status: "Healthy",
+    version: "1.0.0",
+    environment: process.env.NODE_ENV || "production",
+    platform: os.platform(),
+    release: os.release(),
+    arch: os.arch(),
+    hostname: os.hostname(),
+    uptime: `${days}d ${hours}h ${minutes}m`,
+    cpuCount: os.cpus().length,
+    freeMemory: `${(os.freemem() / 1024 / 1024 / 1024).toFixed(2)} GB`,
+    totalMemory: `${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)} GB`,
+    deployTime: new Date().toISOString(),
+    pipelineId: process.env.CI_PIPELINE_ID || "local-dev",
+    commitSha: process.env.CI_COMMIT_SHORT_SHA || "dev-commit"
+  });
 });
 
+app.get('/api/todos', (req, res) => {
+  res.json([
+    { id: 1, text: 'Provision Proxmox Debian 12 VMs', completed: true },
+    { id: 2, text: 'Configure GitLab CI/CD runner', completed: false },
+    { id: 3, text: 'Dockerize Node.js application', completed: true },
+    { id: 4, text: 'Setup automatic production deployment', completed: false }
+  ]);
+});
+
+// Serve HTML Pages
 app.get('/about', (req, res) => {
-  res.send(`
-    <h1>About</h1>
-    <p>Simple app for homelab DevOps practice. GitHub → GitLab → Docker.</p>
-    <a href="/">Home</a>
-  `);
+  res.sendFile(path.join(__dirname, 'public', 'about.html'));
 });
 
-app.get('/todos', (req, res) => {
-  res.json([{ id: 1, text: 'Learn Proxmox' }, { id: 2, text: 'Deploy Node app' }]);
+// Catch-all route to serve dashboard
+app.get('*splat', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(port, () => {
-  console.log(`App running at http://localhost:${port}`);
-});
+module.exports = app;

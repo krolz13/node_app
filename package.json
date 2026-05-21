@@ -1,10 +1,13 @@
 {
-  "name": "node",
+  "name": "node-devops-app",
   "version": "1.0.0",
-  "description": "",
+  "description": "Modern DevOps Status App",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "node index.js",
+    "lint": "eslint .",
+    "test": "jest --detectOpenHandles --forceExit"
   },
   "keywords": [],
   "author": "",
@@ -12,5 +15,10 @@
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
   }
 }

@@ -1,0 +1,96 @@
+stages:
+  - lint
+  - test
+  - build
+  - deploy
+
+# Global cache to speed up Node package installations
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - .npm/
+
+default:
+  before_script:
+    - npm ci --cache .npm --prefer-offline || npm install --cache .npm --prefer-offline
+
+# ========================================================
+# 1. LINT STAGE
+# ========================================================
+lint-job:
+  stage: lint
+  image: node:22-alpine
+  script:
+    - npm run lint
+
+# ========================================================
+# 2. TEST STAGE
+# ========================================================
+test-job:
+  stage: test
+  image: node:22-alpine
+  script:
+    - npm test
+
+# ========================================================
+# 3. BUILD STAGE (Docker-in-Docker)
+# ========================================================
+build-job:
+  stage: build
+  image: docker:24.0.7
+  services:
+    - docker:24.0.7-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  before_script: [] # Skip npm installs on Docker build environment
+  script:
+    - echo "Logging into GitLab Container Registry..."
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - echo "Building Docker image..."
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" -t "$CI_REGISTRY_IMAGE:latest" .
+    - echo "Pushing image to registry..."
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE:latest"
+  only:
+    - main
+    - master
+
+# ========================================================
+# 4. DEPLOY STAGE (SSH to Production VM 201)
+# ========================================================
+deploy-job:
+  stage: deploy
+  image: alpine:latest
+  before_script: [] # Skip npm installs
+  script:
+    - echo "Preparing SSH connection..."
+    - apk add --no-cache openssh-client
+    
+    # Start SSH Agent and import private key
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    
+    # Configure SSH to skip host verification for homelab environment
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+    
+    - echo "Transferring docker-compose.yml and environment variables to VM 201..."
+    - ssh debian@$PROD_VM_IP "mkdir -p ~/app"
+    - scp docker-compose.yml debian@$PROD_VM_IP:~/app/docker-compose.yml
+    
+    - echo "Deploying new app version to Production VM 201..."
+    - ssh debian@$PROD_VM_IP "
+        cd ~/app &&
+        echo 'CI_REGISTRY_IMAGE=$CI_REGISTRY_IMAGE' > .env &&
+        echo 'CI_COMMIT_SHORT_SHA=$CI_COMMIT_SHORT_SHA' >> .env &&
+        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY &&
+        docker compose pull &&
+        docker compose up -d --remove-orphans
+      "
+  only:
+    - main
+    - master
