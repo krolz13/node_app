@@ -5,9 +5,15 @@
 set -euo pipefail
 
 # Configuration
-PVE_IP="192.168.8.171"
+PVE_IP="${PROXMOX_IP:-YOUR_PROXMOX_IP}"
 PVE_USER="root"
-SSH_KEY_PUB="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGStgiyhwxDj8qky+nvkdmwp95q0YIY+xqRYWTDNTyvP andrii.toll88@gmail.com"
+SSH_KEY_PUB="${SSH_KEY_PUB:-$(cat ~/.ssh/id_ed25519.pub 2>/dev/null || echo '')}"
+if [ -z "$SSH_KEY_PUB" ]; then
+    echo "Error: Could not read SSH public key. Please set SSH_KEY_PUB or generate a key at ~/.ssh/id_ed25519.pub"
+    exit 1
+fi
+VM200_PASSWORD="${VM200_PASSWORD:-changeme_gitlab}"
+VM201_PASSWORD="${VM201_PASSWORD:-changeme_prod}"
 
 echo "=========================================================="
 echo " Starting Proxmox VM Provisioning on $PVE_IP"
@@ -24,7 +30,7 @@ ssh_authorized_keys:
   - $SSH_KEY_PUB
 chpasswd:
   list: |
-    debian:gitlabdevops
+    debian:$VM200_PASSWORD
   expire: False
 package_update: true
 package_upgrade: false
@@ -49,7 +55,7 @@ ssh_authorized_keys:
   - $SSH_KEY_PUB
 chpasswd:
   list: |
-    debian:proddevops
+    debian:$VM201_PASSWORD
   expire: False
 package_update: true
 package_upgrade: false
