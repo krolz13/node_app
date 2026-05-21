@@ -41,7 +41,8 @@ build-job:
   stage: build
   image: docker:24.0.7
   services:
-    - docker:24.0.7-dind
+    - name: docker:24.0.7-dind
+      command: ["--insecure-registry", "192.168.8.114:5050"]
   variables:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
