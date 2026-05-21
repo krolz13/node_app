@@ -42,14 +42,15 @@ build-job:
   image: docker:24.0.7
   services:
     - name: docker:24.0.7-dind
-      command: ["--insecure-registry", "192.168.8.114:5050"]
+      command: ["--insecure-registry=192.168.8.114:5050"]
   variables:
+    DOCKER_REGISTRY_INSECURE: "true"  
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   before_script: [] # Skip npm installs on Docker build environment
   script:
     - echo "Logging into GitLab Container Registry..."
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin http://$CI_REGISTRY
     - echo "Building Docker image..."
     - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" -t "$CI_REGISTRY_IMAGE:latest" .
     - echo "Pushing image to registry..."
